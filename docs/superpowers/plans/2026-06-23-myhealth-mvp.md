@@ -13,7 +13,7 @@
 ## Confirmed Product Decisions
 
 - Supabase is not available yet; implement local database storage first.
-- Doubao/Seedream is not available yet; use designed SVG illustrations for food and exercise cards.
+- Doubao/Seedream is now wired through the server-side `/api/advise` route and shows a real AI image on the home card; keep the SVG illustration as the explicit fallback for offline / credential-missing / upstream-error cases.
 - Prioritize completing major functional pages and a good user experience.
 - Use the recommended technical stack.
 - Commit directly to `main`.
@@ -75,8 +75,8 @@ The implementation can start locally, but uninterrupted development after shutdo
 
 - [ ] Build `/profile` with the 8 required fields and zod/react-hook-form validation.
 - [ ] Build deterministic local `/api/advise` generation for all 9 diet plans and 3 goals.
-- [ ] Build `/` dashboard with diet and exercise advice cards, BMR/TDEE/target/macro metrics, compatibility warning, regenerate action, and SVG illustrations.
-- [ ] Add fallback state banner and save-card-as-image behavior.
+- [ ] Build `/` dashboard with diet and exercise advice cards, BMR/TDEE/target/macro metrics, compatibility warning, regenerate action, SVG fallback illustrations, and the Doubao Seedream image path with same-origin proxy + html2canvas PNG export.
+- [ ] Add fallback state banner and a real save-card-as-PNG flow (proxying remote Doubao images through `/api/image-proxy` so html2canvas can read them cross-origin).
 - [ ] Add tests for all 27 diet-plan and goal combinations.
 - [ ] Commit as `feat: add profile and advice flow`.
 
