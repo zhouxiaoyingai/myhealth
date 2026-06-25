@@ -17,18 +17,22 @@ if (!dbUrl) {
 }
 
 const file = resolve(process.cwd(), 'supabase/migrations/0001_init.sql');
-const sql = await readFile(file, 'utf8');
 
-const client = new Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
-await client.connect();
-try {
-  console.log('→ running 0001_init.sql ...');
-  await client.query(sql);
-  console.log('✓ migration done');
-} catch (err) {
-  console.error('✗ migration failed:');
-  console.error(err);
-  process.exitCode = 1;
-} finally {
-  await client.end();
+async function main() {
+  const sql = await readFile(file, 'utf8');
+  const client = new Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+  await client.connect();
+  try {
+    console.log('→ running 0001_init.sql ...');
+    await client.query(sql);
+    console.log('✓ migration done');
+  } catch (err) {
+    console.error('✗ migration failed:');
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    await client.end();
+  }
 }
+
+main();

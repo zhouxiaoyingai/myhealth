@@ -28,18 +28,32 @@ npm run migrate   # 跑 supabase/migrations/0001_init.sql
 
 ## Supabase 接入步骤（新项目最干净）
 
-1. Supabase Dashboard → New project，记下 4 个值；项目创建完成（通常 1-2 分钟）后去 Project Settings 取：
+### 方式 A：CLI 一条龙（推荐）
+
+1. 装 [Supabase CLI](https://github.com/supabase/cli#install-the-supabase-cli)（`scoop install supabase` 或下二进制）。
+2. 在 https://supabase.com/dashboard/account/tokens 生成一个 **Personal Access Token**（PAT），设个名字如 `cli-bootstrap`。
+3. `supabase login --token <你的 PAT>`。
+4. `supabase orgs list` 拿 org id；`supabase projects create "myhealth" --org-id <org> --region ap-northeast-1 --db-password "<强密码>" --plan free`，等 1-2 分钟，记下输出的 **project ref**。
+5. `supabase projects api-keys list --project-ref <ref>` 拿 anon / service_role。
+6. 跑 `pwsh scripts/bootstrap-supabase-project.ps1 -Ref <ref> -AnonKey <anon> -ServiceRole <service> -DbPassword "<强密码>"`：
+   - 写 `.env.local`
+   - `supabase link` + `npm run migrate` 一键建 3 表 + RLS + `advices` bucket + storage 策略
+7. 最后手工一步（CLI 改不了）：Dashboard → Authentication → URL Configuration → Redirect URLs 加 `http://localhost:3000/auth/callback`。
+
+### 方式 B：完全 dashboard
+
+1. Dashboard → New project，等 1-2 分钟建好。
+2. 去 Project Settings 拿 4 个值贴 `.env.local`：
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **API → anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **API → service_role** → `SUPABASE_SERVICE_ROLE_KEY`（**仅服务端用，不要暴露给浏览器**）
+   - **API → service_role** → `SUPABASE_SERVICE_ROLE_KEY`
    - **Database → Connection string → Direct connection** → `SUPABASE_DB_URL`
-2. 把这 4 个值填到 `.env.local`（参考 `.env.example`）。
 3. `npm run migrate` 一次：脚本会幂等跑 `0001_init.sql`，建好 3 张表 + RLS + `advices` storage bucket（private）+ owner-only 存储策略。
 4. Dashboard → Authentication → URL Configuration → Redirect URLs 加 `<your-origin>/auth/callback`（点魔法链接时回跳用）。Email provider 默认就是开的，不用动。
 5. 跑起来：`npm run dev` → 访问 `/auth` → 输入邮箱 → 收到一次性登录链接 → 点链接完成登录。
    首次登录若本地有数据会弹迁移对话框：全部上云 / 只上档案 / 暂不上传。
 
-> 整个流程 0 个手工 SQL、0 个手工建表、0 个手工建 bucket —— 除了第 4 步加一个回跳 URL。
+> 整个流程 0 个手工 SQL、0 个手工建表、0 个手工建 bucket —— 只有 redirect URL 这一步 dashboard 必点（CLI 改不了 project-level auth config）。
 
 ## 仓库抽象
 

@@ -9,3 +9,8 @@ tsconfig.tsbuildinfo
 debug.log
 image copy.png
 屏幕截图*.png
+
+# local Supabase CLI artifacts
+/supabase.exe
+/supabase.tar.gz
+/scripts/.dbpass.tmp
