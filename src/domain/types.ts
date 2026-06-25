@@ -56,8 +56,13 @@ export type Advice = {
   warning?: string;
   metrics: Metrics;
   images?: {
+    /** 饮食图显示用 URL（豆包原图 → /api/image-proxy 代理）。短时效。 */
     dietUrl?: string;
+    /** 运动图显示用 URL。 */
     exerciseUrl?: string;
+    /** 登录用户：豆包图被同步上传到 Supabase Storage 后的 storage key（持久）。 */
+    dietKey?: string;
+    exerciseKey?: string;
     source: 'doubao' | 'fallback';
     error?: string;
   };

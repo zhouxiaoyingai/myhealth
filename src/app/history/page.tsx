@@ -3,37 +3,50 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DailyLog } from '@/domain/types';
 import { lastDays } from '@/lib/date';
-import { repo } from '@/lib/store';
+import { useRepository } from '@/lib/repo';
 
 const days = lastDays(30);
 
 export default function HistoryPage() {
-  const [logs, setLogs] = useState<Record<string, DailyLog>>({});
+  const repo = useRepository();
+  const [logs, setLogs] = useState<DailyLog[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLogs(repo.getLogs());
-  }, []);
+    void (async () => {
+      const list = await repo.listLogs(90);
+      setLogs(list);
+      setLoading(false);
+    })();
+  }, [repo]);
+
+  const logsByDate = useMemo(() => {
+    const map: Record<string, DailyLog> = {};
+    for (const log of logs) map[log.date] = log;
+    return map;
+  }, [logs]);
 
   const streak = useMemo(() => {
     let count = 0;
     for (const date of [...days].reverse()) {
-      if (!logs[date]) break;
+      if (!logsByDate[date]) break;
       count += 1;
     }
     return count;
-  }, [logs]);
+  }, [logsByDate]);
 
-  const selectedLog = logs[selectedDate];
+  const selectedLog = logsByDate[selectedDate];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_.8fr]">
       <section className="card">
         <h1 className="text-4xl font-black">历史记录</h1>
         <p className="mt-2 text-[#6b665f]">最近 30 天饮食 / 运动 / 体重 / 心情标记。</p>
+        {loading ? <p className="mt-3 text-sm text-[#6b665f]">读取中...</p> : null}
         <div className="mt-6 grid grid-cols-5 gap-2 md:grid-cols-10">
           {days.map((date) => {
-            const log = logs[date];
+            const log = logsByDate[date];
             return (
               <button onClick={() => setSelectedDate(date)} className="min-h-20 rounded-2xl bg-white p-2 text-left text-xs" key={date} type="button">
                 <b>{date.slice(5)}</b>
@@ -56,14 +69,14 @@ export default function HistoryPage() {
         <h3 className="mt-6 text-xl font-black">体重趋势</h3>
         <div className="mt-3 flex h-40 items-end gap-2 rounded-2xl bg-[#F7F4ED] p-4">
           {days.slice(-7).map((date) => (
-            <div key={date} className="flex-1 rounded-t-xl bg-[#7FE0B5]" style={{ height: `${Math.max(10, ((logs[date]?.weightKg || 55) - 45) * 4)}px` }} title={String(logs[date]?.weightKg || '')} />
+            <div key={date} className="flex-1 rounded-t-xl bg-[#7FE0B5]" style={{ height: `${Math.max(10, ((logsByDate[date]?.weightKg || 55) - 45) * 4)}px` }} title={String(logsByDate[date]?.weightKg || '')} />
           ))}
         </div>
 
         <h3 className="mt-6 text-xl font-black">心情趋势</h3>
         <div className="mt-3 flex h-28 items-end gap-2 rounded-2xl bg-[#F7F4ED] p-4">
           {days.slice(-7).map((date) => (
-            <div key={date} className="flex-1 rounded-t-xl bg-[#C5B0F4]" style={{ height: `${(logs[date]?.mood || 1) * 18}px` }} />
+            <div key={date} className="flex-1 rounded-t-xl bg-[#C5B0F4]" style={{ height: `${(logsByDate[date]?.mood || 1) * 18}px` }} />
           ))}
         </div>
 

@@ -6,9 +6,11 @@ import { Illustration } from '@/components/Illustration';
 import { generateAdvice, sampleProfile } from '@/domain/advice';
 import type { Advice, DailyLog, Profile } from '@/domain/types';
 import { today } from '@/lib/date';
-import { repo } from '@/lib/store';
+import { useRepository } from '@/lib/repo';
+import { useImageUrl } from '@/lib/useImageUrl';
 
 export default function Home() {
+  const repo = useRepository();
   const [profile, setProfile] = useState<Profile>();
   const [advice, setAdvice] = useState<Advice>();
   const [log, setLog] = useState<DailyLog>();
@@ -18,54 +20,66 @@ export default function Home() {
   const [exportMessage, setExportMessage] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const regenerate = useCallback(async (activeProfile: Profile) => {
-    setIsGenerating(true);
-    setImageError(undefined);
+  const regenerate = useCallback(
+    async (activeProfile: Profile) => {
+      setIsGenerating(true);
+      setImageError(undefined);
 
-    try {
-      const response = await fetch('/api/advise', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: activeProfile, date: today() }),
-      });
+      try {
+        const response = await fetch('/api/advise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile: activeProfile,
+            date: today(),
+            uploadToCloud: repo.mode === 'supabase',
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`Advice API failed with ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`Advice API failed with ${response.status}`);
+        }
+
+        const regeneratedAdvice = (await response.json()) as Advice;
+        if (regeneratedAdvice.images?.source === 'fallback' && regeneratedAdvice.images?.error) {
+          setImageError(regeneratedAdvice.images.error);
+        }
+        await repo.saveAdvice(regeneratedAdvice);
+        setAdvice(regeneratedAdvice);
+      } catch (error) {
+        const fallbackAdvice = generateAdvice(activeProfile, today());
+        setImageError(error instanceof Error ? error.message : '未知错误');
+        await repo.saveAdvice(fallbackAdvice);
+        setAdvice(fallbackAdvice);
+      } finally {
+        setIsGenerating(false);
       }
-
-      const regeneratedAdvice = (await response.json()) as Advice;
-      if (regeneratedAdvice.images?.source === 'fallback' && regeneratedAdvice.images?.error) {
-        setImageError(regeneratedAdvice.images.error);
-      }
-      repo.saveAdvice(regeneratedAdvice);
-      setAdvice(regeneratedAdvice);
-    } catch (error) {
-      const fallbackAdvice = generateAdvice(activeProfile, today());
-      setImageError(error instanceof Error ? error.message : '未知错误');
-      repo.saveAdvice(fallbackAdvice);
-      setAdvice(fallbackAdvice);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, []);
+    },
+    [repo],
+  );
 
   useEffect(() => {
-    const activeProfile = repo.getProfile() || sampleProfile;
-    const date = today();
-    const cachedAdvice = repo.getAdvice(date) || generateAdvice(activeProfile, date);
+    void (async () => {
+      const date = today();
+      const stored = await repo.getProfile();
+      const activeProfile = stored ?? sampleProfile;
+      const storedAdvice = await repo.getAdvice(date);
+      const cachedAdvice = storedAdvice ?? generateAdvice(activeProfile, date);
+      const storedLog = await repo.getLog(date);
 
-    repo.saveAdvice(cachedAdvice);
-    setProfile(activeProfile);
-    setAdvice(cachedAdvice);
-    setLog(repo.getLogs()[date]);
-    if (cachedAdvice.images?.source === 'fallback' && cachedAdvice.images?.error) {
-      setImageError(cachedAdvice.images.error);
-    }
+      await repo.saveAdvice(cachedAdvice);
+      setProfile(activeProfile);
+      setAdvice(cachedAdvice);
+      setLog(storedLog ?? undefined);
+      if (cachedAdvice.images?.source === 'fallback' && cachedAdvice.images?.error) {
+        setImageError(cachedAdvice.images.error);
+      }
 
-    if (cachedAdvice.images?.source !== 'doubao') {
-      void regenerate(activeProfile);
-    }
-  }, [regenerate]);
+      if (cachedAdvice.images?.source !== 'doubao') {
+        void regenerate(activeProfile);
+      }
+    })();
+  }, [regenerate, repo]);
 
   const saveCard = useCallback(async () => {
     if (!cardRef.current) return;
@@ -106,6 +120,45 @@ export default function Home() {
 
   if (!advice || !profile) return null;
 
+  return (
+    <HomeBody
+      advice={advice}
+      profile={profile}
+      log={log}
+      isGenerating={isGenerating}
+      isExporting={isExporting}
+      imageError={imageError}
+      exportMessage={exportMessage}
+      onRegenerate={() => void regenerate(profile)}
+      onSave={() => void saveCard()}
+    />
+  );
+}
+
+function HomeBody({
+  advice,
+  profile,
+  log,
+  isGenerating,
+  isExporting,
+  imageError,
+  exportMessage,
+  onRegenerate,
+  onSave,
+}: {
+  advice: Advice;
+  profile: Profile;
+  log?: DailyLog;
+  isGenerating: boolean;
+  isExporting: boolean;
+  imageError?: string;
+  exportMessage: string;
+  onRegenerate: () => void;
+  onSave: () => void;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const dietSrc = useImageUrl(advice.images?.dietKey ?? advice.images?.dietUrl);
+  const exerciseSrc = useImageUrl(advice.images?.exerciseKey ?? advice.images?.exerciseUrl);
   const isDoubaoReady = advice.images?.source === 'doubao';
   const fallbackMessage = isDoubaoReady ? undefined : '豆包配图暂不可用';
 
@@ -116,10 +169,10 @@ export default function Home() {
         <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">今天好好吃饭，也温柔地动一动。</h1>
         <p className="mt-4 text-lg text-[#514c45]">{advice.summary}</p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <button onClick={() => void regenerate(profile)} className="btn btn-primary" type="button" disabled={isGenerating}>
+          <button onClick={onRegenerate} className="btn btn-primary" type="button" disabled={isGenerating}>
             {isGenerating ? '生成中...' : '重新生成'}
           </button>
-          <button onClick={() => void saveCard()} className="btn bg-white" type="button" disabled={isExporting}>
+          <button onClick={onSave} className="btn bg-white" type="button" disabled={isExporting}>
             {isExporting ? '导出中...' : '保存卡片'}
           </button>
         </div>
@@ -149,11 +202,11 @@ export default function Home() {
       <section className="card">
         <Illustration
           type="food"
-          imageUrl={advice.images?.dietUrl}
+          imageUrl={dietSrc.url}
           proxied={isDoubaoReady}
-          loading={isGenerating && !isDoubaoReady}
+          loading={(isGenerating || dietSrc.loading) && !isDoubaoReady}
           fallbackMessage={fallbackMessage}
-          onRetry={() => void regenerate(profile)}
+          onRetry={onRegenerate}
         />
         <h2 className="mt-4 text-2xl font-black">🥗 饮食卡片</h2>
         {imageError && !isDoubaoReady ? (
@@ -175,11 +228,11 @@ export default function Home() {
       <section className="card">
         <Illustration
           type="sport"
-          imageUrl={advice.images?.exerciseUrl}
+          imageUrl={exerciseSrc.url}
           proxied={isDoubaoReady}
-          loading={isGenerating && !isDoubaoReady}
+          loading={(isGenerating || exerciseSrc.loading) && !isDoubaoReady}
           fallbackMessage={fallbackMessage}
-          onRetry={() => void regenerate(profile)}
+          onRetry={onRegenerate}
         />
         <h2 className="mt-4 text-2xl font-black">🏃 运动卡片</h2>
         <p className="mt-3 text-xl font-bold">

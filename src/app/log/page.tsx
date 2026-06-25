@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { bmi, withinBackfill } from '@/domain/health';
 import type { DailyLog } from '@/domain/types';
 import { today } from '@/lib/date';
-import { repo } from '@/lib/store';
+import { useRepository } from '@/lib/repo';
 
 function blankLog(date = today()): DailyLog {
   return {
@@ -18,20 +18,32 @@ function blankLog(date = today()): DailyLog {
 }
 
 export default function LogPage() {
+  const repo = useRepository();
   const [log, setLog] = useState<DailyLog>(blankLog());
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setLog(repo.getLogs()[today()] || blankLog());
-  }, []);
+    void (async () => {
+      const stored = await repo.getLog(today());
+      setLog(stored ?? blankLog());
+    })();
+  }, [repo]);
 
-  function save() {
+  async function onDateChange(date: string) {
+    setLoading(true);
+    const stored = await repo.getLog(date);
+    setLog(stored ?? blankLog(date));
+    setLoading(false);
+  }
+
+  async function save() {
     if (!withinBackfill(log.date)) {
       setMessage('只能补录最近 7 天。');
       return;
     }
 
-    repo.upsertLog({ ...log, updatedAt: new Date().toISOString() });
+    await repo.upsertLog({ ...log, updatedAt: new Date().toISOString() });
     setMessage('已保存打卡。');
   }
 
@@ -44,9 +56,10 @@ export default function LogPage() {
           type="date"
           className="input mt-1"
           value={log.date}
-          onChange={(event) => setLog(repo.getLogs()[event.target.value] || blankLog(event.target.value))}
+          onChange={(event) => void onDateChange(event.target.value)}
         />
       </label>
+      {loading ? <p className="mt-2 text-sm text-[#6b665f]">读取中...</p> : null}
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="rounded-3xl bg-[#FFD6E0]/60 p-5">
@@ -93,7 +106,7 @@ export default function LogPage() {
         </div>
       </div>
 
-      <button onClick={save} className="btn btn-primary mt-6" type="button">
+      <button onClick={() => void save()} className="btn btn-primary mt-6" type="button">
         保存今日打卡
       </button>
       {message ? <p className="mt-3 font-bold text-[#514c45]">{message}</p> : null}

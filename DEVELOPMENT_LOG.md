@@ -68,3 +68,26 @@ Run verification (`npm run lint`, `npm run test`, `npm run build`, `npm run test
 1. 本地数据层升级：repository 接口保留，底层 localStorage → IndexedDB，连同把豆包图转 blob 缓存，避免 24h 失效。
 2. 历史页真实回看：点击某天 → 当日建议 + 实际打卡对比 + 简短差异。
 3. Supabase / Auth：在前两步稳定后再接，避免把问题扩大到账号 + RLS + 同步冲突。
+
+## 2026-06-24 Supabase 数据层接入
+
+- 跑通 Supabase 接入：项目 `bsaflokvqxnljfordzqt`、URL/Anon/Service Role 已落到 `.env.local`（不入仓）。
+- `supabase/migrations/0001_init.sql`：profiles / daily_advices / daily_logs + RLS（owner-only 读写）+ Storage bucket `advices` 策略（`{userId}/...` 路径限本人）。字段对齐 `src/domain/types.ts`。
+- `src/lib/supabase/`：`client.ts`（浏览器）/ `server.ts`（route handler + server component，cookies 异步化）/ `admin.ts`（service role，Storage 上传/签名专用）/ `storage.ts`（`buildStoragePath` / `parseStorageKey` / `uploadImageFromUrl` / `getSignedImageUrl`）。
+- `AuthProvider` + `/auth` 页面（魔法链接表单）+ `/auth/callback/route.ts`（code 换 session）。`Shell` 顶栏按登录态显示「登录 / 邮箱 + 登出」。
+- `Repository` 抽象：`src/lib/repo/` — `types.ts`（接口 + DB row ↔ 应用层互转）/ `local.ts` / `supabase.ts` / `index.ts`（`useRepository()` hook，按 AuthProvider 自动切换）/ `migrate.ts`（`migrateLocalToSupabase`，错误以 `MigrateResult` 返回）。
+- 5 个页面（`/`、`/log`、`/history`、`/profile`、`/settings`）全部改 async：所有 `repo.X(...)` 走 `await`，加 loading 状态；不再 import 旧的 `@/lib/store`（已删除）。
+- `/api/advise` 升级：登录用户走「豆包 → 服务端 fetch → 上传 Supabase Storage」流水线，response 多带 `images.dietKey` / `images.exerciseKey`。
+- 新增 `/api/image-storage`：登录用户拿 storage key 换 1h signed URL，路由层校验 `key.userId == auth user.id`，防止越权。
+- 新增 `useImageUrl(src)`：自动判断 src 是 http(s) 链接还是 storage key，分别走直链 / `/api/image-storage`。
+- 新增 `MigrationPrompt` + `MigrationModal`：首次登录若本地有数据，弹「全部 / 只档案 / 跳过」三选一；完成后写 `myhealth.migrationPrompted.v1` 标记（按 userId）。
+- 新增 3 个测试文件：`tests/repo/storageKey.test.ts`（4 用例）/ `tests/repo/localRepository.test.ts`（7 用例）/ `tests/repo/migrate.test.ts`（7 用例）。`vitest.config.ts` 放开 `tests/**/*.test.ts` 并加 `@` alias。`npx vitest run` 6 个文件 23 个用例全绿。
+- `npx tsc --noEmit` / `npx next build` 全绿，build 产物多了 `/api/image-storage` 和 `/auth/callback` 两个动态路由。
+- README 重写：补充 Supabase 接入 6 步、仓库抽象、本地 / 云数据路径、豆包配图 3 个路由的角色。
+
+## 2026-06-24 用户需要执行的 Supabase 步骤
+
+- `SUPABASE_DB_URL` 还是空，需要在 Supabase Dashboard → Project Settings → Database → Connection string 拿 **Direct connection** 串贴到 `.env.local`，然后 `npm run migrate` 一次。
+- Auth → URL Configuration → Redirect URLs 加 `<origin>/auth/callback`（点魔法链接时回跳用）。
+- Storage → 新建 bucket `advices`（隐私 private；SQL 里已包含策略）。
+

@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import { generateAdvice, sampleProfile } from '@/domain/advice';
-import type { Profile } from '@/domain/types';
+import type { Advice, Profile } from '@/domain/types';
 import { attachDoubaoImages } from '@/lib/doubaoImages';
+import { createServerSupabase } from '@/lib/supabase/server';
+import { createAdminSupabase } from '@/lib/supabase/admin';
+import { uploadImageFromUrl, type ImageSlot } from '@/lib/supabase/storage';
 
 export const runtime = 'nodejs';
 
+type AdviseRequest = {
+  profile?: Profile;
+  date?: string;
+  includeImages?: boolean;
+  // 登录用户标识：命中且 Supabase 已配置 → 上传 Storage
+  uploadToCloud?: boolean;
+};
+
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) as AdviseRequest;
   const profile = (body.profile || sampleProfile) as Profile;
   const advice = generateAdvice(profile, body.date);
 
@@ -14,5 +25,38 @@ export async function POST(request: Request) {
     return NextResponse.json(advice);
   }
 
-  return NextResponse.json(await attachDoubaoImages(advice, profile));
+  const withImages = await attachDoubaoImages(advice, profile);
+
+  // 登录用户：把豆包图代理 → 上传 Supabase Storage，附上 storage key
+  if (body.uploadToCloud) {
+    const serverSupabase = createServerSupabase();
+    const adminSupabase = createAdminSupabase();
+    if (serverSupabase && adminSupabase) {
+      const { data: userData } = await serverSupabase.auth.getUser();
+      const user = userData?.user;
+      const date = advice.date;
+      if (user) {
+        const dietKey = withImages.images?.dietUrl
+          ? await uploadImageFromUrl(adminSupabase, { sourceUrl: withImages.images.dietUrl, userId: user.id, date, slot: 'diet' })
+          : null;
+        const exerciseKey = withImages.images?.exerciseUrl
+          ? await uploadImageFromUrl(adminSupabase, { sourceUrl: withImages.images.exerciseUrl, userId: user.id, date, slot: 'exercise' })
+          : null;
+
+        if (dietKey || exerciseKey) {
+          const mergedImages = {
+            ...(withImages.images ?? { source: 'fallback' as const }),
+            dietKey: dietKey ?? undefined,
+            exerciseKey: exerciseKey ?? undefined,
+          };
+          return NextResponse.json({ ...withImages, images: mergedImages });
+        }
+      }
+    }
+  }
+
+  return NextResponse.json(withImages);
 }
+
+// re-export for type discipline
+export type { ImageSlot };

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { sampleProfile } from '@/domain/advice';
-import { repo } from '@/lib/store';
+import { useRepository } from '@/lib/repo';
 
 const profileSchema = z.object({
   gender: z.enum(['female', 'male', 'other']),
@@ -41,15 +41,19 @@ const selectFields = [
 ] as const;
 
 export default function ProfilePage() {
+  const repo = useRepository();
   const [formError, setFormError] = useState('');
   const [saved, setSaved] = useState(false);
   const { register, handleSubmit, reset } = useForm<ProfileForm>({ defaultValues: sampleProfile });
 
   useEffect(() => {
-    reset(repo.getProfile() || sampleProfile);
-  }, [reset]);
+    void (async () => {
+      const stored = await repo.getProfile();
+      reset(stored ?? sampleProfile);
+    })();
+  }, [reset, repo]);
 
-  function onSubmit(values: ProfileForm) {
+  async function onSubmit(values: ProfileForm) {
     const parsed = profileSchema.safeParse(values);
     if (!parsed.success) {
       setSaved(false);
@@ -57,7 +61,7 @@ export default function ProfilePage() {
       return;
     }
 
-    repo.saveProfile(parsed.data);
+    await repo.saveProfile(parsed.data);
     setFormError('');
     setSaved(true);
   }
@@ -65,8 +69,8 @@ export default function ProfilePage() {
   return (
     <section className="card">
       <h1 className="text-4xl font-black">个人档案</h1>
-      <p className="mt-2 text-[#6b665f]">8 个字段会保存在浏览器本地，用于生成每日生活方式建议。</p>
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 grid gap-4 md:grid-cols-2">
+      <p className="mt-2 text-[#6b665f]">8 个字段会保存在浏览器本地（登录后会上云），用于生成每日生活方式建议。</p>
+      <form onSubmit={handleSubmit((v) => void onSubmit(v))} className="mt-6 grid gap-4 md:grid-cols-2">
         {selectFields.map((field) => (
           <label className="label" key={field.name}>
             {field.label}
@@ -99,7 +103,7 @@ export default function ProfilePage() {
           保存档案
         </button>
         {formError ? <p className="font-bold text-red-600 md:col-span-2">{formError}</p> : null}
-        {saved ? <p className="font-bold text-green-700 md:col-span-2">已保存到本地数据库。</p> : null}
+        {saved ? <p className="font-bold text-green-700 md:col-span-2">已保存。</p> : null}
       </form>
     </section>
   );

@@ -85,7 +85,7 @@
 | FR-01 | 8 字段档案：性别 / 年龄 / 身高 / 体重 / 目标 / 活动水平 / 饮食方案(9选1) / 备注 | ✅ |
 | FR-02 | 档案持久化（**v2 改为 Supabase `profiles` 表**，登录后云端同步） | ✅ |
 | FR-03 | 修改资料入口 | ✅ |
-| FR-04 | localStorage 兜底（未登录时仍可用） | 🟡 |
+| FR-04 | localStorage 兜底（未登录时仍可用） | ✅ |
 
 ### 5.2 当日建议（v1 升级）🍱
 
@@ -298,6 +298,7 @@ v2 上线前必须通过：
 | v1.1 | 2026-06-16 | 升级 2 张卡片 + 文生图 + 保存到手机 |
 | **v2.0** | **2026-06-23** | **本版**：新增饮食/运动/体重/心情打卡、历史日历与曲线、Supabase 账号体系、响应式多端、迁移到 Next.js + Supabase + Vercel + GitHub 全栈架构、文生图统一为豆包 |
 | v2.0.1 | 2026-06-24 | 同步：饮食卡片收敛为早/午/晚 3 餐；豆包 Seedream 已接入并跑通，配图同源代理 `/api/image-proxy` 解决 html2canvas 导出的 CORS 问题，首页「保存卡片」改为真实 PNG 导出 |
+| v2.0.2 | 2026-06-24 | Supabase 数据层接入：邮箱魔法链接登录、`profiles` / `daily_advices` / `daily_logs` 三表 + RLS；AI 配图经服务端代理转存 Supabase Storage（永久路径 `<userId>/<date>/{diet|exercise}.png`），新增 `/api/image-storage` signed URL 路由；本地 → 云端首次登录迁移弹窗（全部 / 只档案 / 跳过）；Repository 抽象统一 localStorage / Supabase 两套实现 |
 
 ---
 
