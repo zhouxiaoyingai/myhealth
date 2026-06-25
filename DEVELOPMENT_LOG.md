@@ -85,9 +85,16 @@ Run verification (`npm run lint`, `npm run test`, `npm run build`, `npm run test
 - `npx tsc --noEmit` / `npx next build` 全绿，build 产物多了 `/api/image-storage` 和 `/auth/callback` 两个动态路由。
 - README 重写：补充 Supabase 接入 6 步、仓库抽象、本地 / 云数据路径、豆包配图 3 个路由的角色。
 
-## 2026-06-24 用户需要执行的 Supabase 步骤
+## 2026-06-24 用户需要执行的 Supabase 步骤（新建项目路径）
 
-- `SUPABASE_DB_URL` 还是空，需要在 Supabase Dashboard → Project Settings → Database → Connection string 拿 **Direct connection** 串贴到 `.env.local`，然后 `npm run migrate` 一次。
-- Auth → URL Configuration → Redirect URLs 加 `<origin>/auth/callback`（点魔法链接时回跳用）。
-- Storage → 新建 bucket `advices`（隐私 private；SQL 里已包含策略）。
+- 在 Supabase Dashboard New project，等 1-2 分钟建好。
+- 拿 4 个值贴 `.env.local`：
+  - `NEXT_PUBLIC_SUPABASE_URL`（Project URL）
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`（API → anon public）
+  - `SUPABASE_SERVICE_ROLE_KEY`（API → service_role）
+  - `SUPABASE_DB_URL`（Database → Direct connection string）
+- `npm run migrate`：脚本会幂等跑 `0001_init.sql`，建 3 张表 + RLS + `advices` bucket（private）+ owner-only storage policies。
+- Auth → URL Configuration → Redirect URLs 加 `<origin>/auth/callback`（点魔法链接时回跳用；这一步必须手工，Supabase Management API 改 project-level config 需要 service role token 不适合放客户端）。
+- Email provider 默认开，不用动。
+- 之后 `npm run dev`，访问 `/auth` 收一次性登录链接即可。
 

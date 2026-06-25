@@ -26,17 +26,20 @@ npm run test:e2e
 npm run migrate   # 跑 supabase/migrations/0001_init.sql
 ```
 
-## Supabase 接入步骤
+## Supabase 接入步骤（新项目最干净）
 
-1. 拿到项目 URL、Anon Key、Service Role Key，填到 `.env.local`（参考 `.env.example`）。
-2. 在 Supabase Dashboard → Project Settings → Database → Connection string 拿 **Direct connection** URL，填到 `SUPABASE_DB_URL`。
-3. `npm run migrate` 一次（创建表 + RLS + Storage policies）。
-4. 在 Dashboard → Auth → URL Configuration → Redirect URLs 加入 `<your-origin>/auth/callback`。
-5. 在 Dashboard → Authentication → Providers 确认 Email provider 开启（默认就是开）。
-6. 在 Dashboard → Storage → advices bucket **创建 bucket**（如果 SQL 没自动建），把 Privacy 设成 private。
+1. Supabase Dashboard → New project，记下 4 个值；项目创建完成（通常 1-2 分钟）后去 Project Settings 取：
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **API → anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **API → service_role** → `SUPABASE_SERVICE_ROLE_KEY`（**仅服务端用，不要暴露给浏览器**）
+   - **Database → Connection string → Direct connection** → `SUPABASE_DB_URL`
+2. 把这 4 个值填到 `.env.local`（参考 `.env.example`）。
+3. `npm run migrate` 一次：脚本会幂等跑 `0001_init.sql`，建好 3 张表 + RLS + `advices` storage bucket（private）+ owner-only 存储策略。
+4. Dashboard → Authentication → URL Configuration → Redirect URLs 加 `<your-origin>/auth/callback`（点魔法链接时回跳用）。Email provider 默认就是开的，不用动。
+5. 跑起来：`npm run dev` → 访问 `/auth` → 输入邮箱 → 收到一次性登录链接 → 点链接完成登录。
+   首次登录若本地有数据会弹迁移对话框：全部上云 / 只上档案 / 暂不上传。
 
-登录后：访问 `/auth` → 输入邮箱 → 收到一次性登录链接 → 点链接即完成登录。
-首次登录时如果本地有数据，会弹迁移对话框：全部上云 / 只上档案 / 暂不上传。
+> 整个流程 0 个手工 SQL、0 个手工建表、0 个手工建 bucket —— 除了第 4 步加一个回跳 URL。
 
 ## 仓库抽象
 
