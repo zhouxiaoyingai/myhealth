@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import html2canvas from 'html2canvas';
 import { Illustration } from '@/components/Illustration';
 import { generateAdvice, sampleProfile } from '@/domain/advice';
@@ -81,7 +82,7 @@ export default function Home() {
     })();
   }, [regenerate, repo]);
 
-  const saveCard = useCallback(async () => {
+  async function saveCard() {
     if (!cardRef.current) return;
     setIsExporting(true);
     setExportMessage('正在生成图片...');
@@ -116,15 +117,15 @@ export default function Home() {
     } finally {
       setIsExporting(false);
     }
-  }, [advice?.date]);
+  }
 
   if (!advice || !profile) return null;
 
   return (
     <HomeBody
       advice={advice}
-      profile={profile}
       log={log}
+      cardRef={cardRef}
       isGenerating={isGenerating}
       isExporting={isExporting}
       imageError={imageError}
@@ -137,8 +138,8 @@ export default function Home() {
 
 function HomeBody({
   advice,
-  profile,
   log,
+  cardRef,
   isGenerating,
   isExporting,
   imageError,
@@ -147,8 +148,8 @@ function HomeBody({
   onSave,
 }: {
   advice: Advice;
-  profile: Profile;
   log?: DailyLog;
+  cardRef: RefObject<HTMLDivElement | null>;
   isGenerating: boolean;
   isExporting: boolean;
   imageError?: string;
@@ -156,7 +157,6 @@ function HomeBody({
   onRegenerate: () => void;
   onSave: () => void;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
   const dietSrc = useImageUrl(advice.images?.dietKey ?? advice.images?.dietUrl);
   const exerciseSrc = useImageUrl(advice.images?.exerciseKey ?? advice.images?.exerciseUrl);
   const isDoubaoReady = advice.images?.source === 'doubao';

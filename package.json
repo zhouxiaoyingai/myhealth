@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate.ts"
   },
   "dependencies": {

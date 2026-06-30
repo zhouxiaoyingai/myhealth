@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateAdvice, sampleProfile } from '@/domain/advice';
-import type { Advice, Profile } from '@/domain/types';
+import type { Profile } from '@/domain/types';
 import { attachDoubaoImages } from '@/lib/doubaoImages';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';

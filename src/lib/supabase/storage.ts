@@ -37,13 +37,11 @@ export async function uploadImageFromUrl(
       upsert: true,
     });
     if (error) {
-      // eslint-disable-next-line no-console
       console.error('[storage] upload failed', error);
       return null;
     }
     return path;
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[storage] upload threw', err);
     return null;
   }
@@ -60,7 +58,6 @@ export async function getSignedImageUrl(
   if (!supabase) return null;
   const { data, error } = await supabase.storage.from('advices').createSignedUrl(key, expiresIn);
   if (error) {
-    // eslint-disable-next-line no-console
     console.error('[storage] sign failed', error);
     return null;
   }

@@ -6,7 +6,6 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!url || !anonKey) {
   // 缺凭证时不要在 import 阶段 throw，避免触发"未配置也能跑"路径的 SSR 失败
   // 调用方在使用前应判断 createBrowserSupabase() 的返回值是否为 null
-  // eslint-disable-next-line no-console
   console.warn('[supabase] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
 }
 
