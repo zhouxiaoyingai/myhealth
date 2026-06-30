@@ -2,13 +2,13 @@
 
 ## Current Goal
 
-Build the `myhealth` repository into a locally runnable MVP for the AI health assistant, then commit and push the result to `zhouxiaoyingai/myhealth`.
+Stabilize the Supabase-enabled MyHealth MVP: keep the local-first anonymous path working, verify the logged-in Supabase path, and finish the core "generate → display → export → review" user loop.
 
 ## Confirmed Decisions
 
-- Build local-first now because Supabase and Doubao credentials are not available yet.
-- Store app data in a local browser database, with fallback persistence.
-- Use SVG illustrations for advice-card visuals before real text-to-image integration.
+- Keep anonymous mode local-first with browser persistence.
+- Use Supabase Auth/Postgres/Storage for logged-in cloud sync.
+- Use Doubao Seedream for advice-card visuals, with SVG fallback when credentials or upstream generation fail.
 - Prioritize completed major pages, polished design, and good user experience.
 - Use Next.js 15, TypeScript, Tailwind CSS, local shadcn-style UI primitives, react-hook-form, zod, Vitest, and Playwright.
 - Commit directly to `main`.
@@ -34,11 +34,11 @@ Build the `myhealth` repository into a locally runnable MVP for the AI health as
 
 ## Current Blocker
 
-None for local MVP implementation. Supabase and Doubao/Seedream integrations remain future work until credentials are available.
+No blocker for local MVP or build verification. Remaining product work is mostly experience depth: history review quality, anonymous image persistence, and broader logged-in Supabase manual QA.
 
 ## Next Step
 
-Run verification (`npm run lint`, `npm run test`, `npm run build`, `npm run test:e2e`), fix any issues, commit, and push `main`.
+Improve `/history` from a log viewer into a review surface: show selected-day advice next to actual check-ins and summarize the differences.
 
 ## 2026-06-23 MVP Implementation Update
 
@@ -97,4 +97,20 @@ Run verification (`npm run lint`, `npm run test`, `npm run build`, `npm run test
 - Auth → URL Configuration → Redirect URLs 加 `<origin>/auth/callback`（点魔法链接时回跳用；这一步必须手工，Supabase Management API 改 project-level config 需要 service role token 不适合放客户端）。
 - Email provider 默认开，不用动。
 - 之后 `npm run dev`，访问 `/auth` 收一次性登录链接即可。
+
+## 2026-06-30 Stabilization Update
+
+- Fixed the home-page card export path: the html2canvas target ref now points to the rendered card DOM instead of an unattached parent ref.
+- Added `tests/app/homeSaveCard.test.ts` to prove clicking “保存卡片” calls html2canvas with a real HTMLElement.
+- Cleaned lint issues in `/api/advise`, `/`, and Supabase helpers. `npm run lint` is now clean.
+- Changed `npm run test:e2e` to use `scripts/run-e2e.mjs`, which explicitly starts and stops Next dev on `127.0.0.1`; Playwright no longer hangs after smoke tests.
+- Seeded the home smoke test with local advice data so e2e does not trigger real Doubao image generation.
+- Improved `/history`: selected-day review now shows advice, actual check-ins, and a concise difference summary.
+- Added `src/domain/historyReview.ts` with tests for missing meals, short exercise, missing weight, and low mood.
+- Documented the anonymous-image persistence tradeoff: localStorage still stores temporary Doubao URLs; logged-in users get Supabase Storage persistence; IndexedDB blob caching remains the next step if anonymous persistence becomes important.
+- Verification after the fixes:
+  - `npm run lint` passed.
+  - `npm run test` passed: 8 files / 26 tests.
+  - `npm run build` passed.
+  - `npm run test:e2e` passed: 6 smoke tests.
 

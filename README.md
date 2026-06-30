@@ -79,6 +79,15 @@ npm run migrate   # 跑 supabase/migrations/0001_init.sql
 - `/api/image-proxy`：仅白名单 `*.volces.com` / `ark.cn-beijing.volces.com` 域名，用于 html2canvas 同源下载，绕过 CORS
 - `/api/image-storage`：登录用户用 storage key 换 1h signed URL（按 user id 验所有权）
 
+匿名用户仍会把豆包临时 URL 缓存在 localStorage 中；如果 24h 后图片失效，可以重新生成建议或登录后使用 Supabase Storage 持久化。后续若要增强匿名模式，应把图片经 `/api/image-proxy` 转成 blob 后存入 IndexedDB，而不是继续扩大 localStorage。
+
+## 当前验证状态
+
+- `npm run lint`：通过
+- `npm run test`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：通过，脚本会显式启动并停止本地 Next dev server
+
 ## 健康边界
 
 MyHealth 只提供生活方式参考，不做医疗诊断。如有疾病、孕产、未成年或身体不适，请咨询医生。
