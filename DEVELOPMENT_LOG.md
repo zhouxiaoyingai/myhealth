@@ -126,3 +126,14 @@ Improve `/history` from a log viewer into a review surface: show selected-day ad
   - `/auth` sign-out returns to the magic-link form.
 - Did not call Doubao image generation during QA to avoid external image-generation cost; Storage was verified with a tiny test PNG uploaded via service role.
 
+## 2026-06-30 Real AI Image Storage Chain QA
+
+- Ran the full logged-in `/api/advise` chain with real Doubao Seedream image generation enabled.
+- Verified:
+  - authenticated cookie was recognized by the API route;
+  - `/api/advise` returned `images.source === "doubao"`;
+  - response included both `images.dietKey` and `images.exerciseKey`;
+  - both generated image objects existed in Supabase Storage and were non-empty;
+  - `/api/image-storage` returned signed URLs for both owned storage keys.
+- The temporary Supabase user and generated Storage objects were cleaned up after QA.
+
