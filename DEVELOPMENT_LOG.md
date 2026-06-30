@@ -114,3 +114,15 @@ Improve `/history` from a log viewer into a review surface: show selected-day ad
   - `npm run build` passed.
   - `npm run test:e2e` passed: 6 smoke tests.
 
+## 2026-06-30 Supabase Logged-In QA
+
+- Ran a real Supabase logged-in browser QA flow against local Next dev and the configured remote Supabase project.
+- Used a temporary confirmed test user and a real Supabase session cookie; the test user, rows, and storage object were cleaned up after verification.
+- Verified:
+  - authenticated `/auth` state renders correctly;
+  - `/profile` saves through `SupabaseRepository` into `profiles`;
+  - `/log` saves through `SupabaseRepository` into `daily_logs`;
+  - `/api/image-storage` accepts an owned storage key and returns a signed URL;
+  - `/auth` sign-out returns to the magic-link form.
+- Did not call Doubao image generation during QA to avoid external image-generation cost; Storage was verified with a tiny test PNG uploaded via service role.
+
