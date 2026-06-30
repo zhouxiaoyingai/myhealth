@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { DailyLog } from '@/domain/types';
+import { summarizeDailyReview } from '@/domain/historyReview';
+import type { Advice, DailyLog } from '@/domain/types';
 import { lastDays } from '@/lib/date';
 import { useRepository } from '@/lib/repo';
 
@@ -10,13 +11,15 @@ const days = lastDays(30);
 export default function HistoryPage() {
   const repo = useRepository();
   const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [advices, setAdvices] = useState<Advice[]>([]);
+  const [selectedDate, setSelectedDate] = useState(days[days.length - 1] ?? '');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
-      const list = await repo.listLogs(90);
-      setLogs(list);
+      const [logList, adviceList] = await Promise.all([repo.listLogs(90), repo.listAdvices(90)]);
+      setLogs(logList);
+      setAdvices(adviceList);
       setLoading(false);
     })();
   }, [repo]);
@@ -26,6 +29,12 @@ export default function HistoryPage() {
     for (const log of logs) map[log.date] = log;
     return map;
   }, [logs]);
+
+  const advicesByDate = useMemo(() => {
+    const map: Record<string, Advice> = {};
+    for (const advice of advices) map[advice.date] = advice;
+    return map;
+  }, [advices]);
 
   const streak = useMemo(() => {
     let count = 0;
@@ -37,6 +46,8 @@ export default function HistoryPage() {
   }, [logsByDate]);
 
   const selectedLog = logsByDate[selectedDate];
+  const selectedAdvice = advicesByDate[selectedDate];
+  const selectedReview = summarizeDailyReview(selectedAdvice, selectedLog);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_.8fr]">
@@ -48,9 +59,15 @@ export default function HistoryPage() {
           {days.map((date) => {
             const log = logsByDate[date];
             return (
-              <button onClick={() => setSelectedDate(date)} className="min-h-20 rounded-2xl bg-white p-2 text-left text-xs" key={date} type="button">
+              <button
+                onClick={() => setSelectedDate(date)}
+                className={`min-h-20 rounded-2xl p-2 text-left text-xs ${selectedDate === date ? 'bg-[#171717] text-white' : 'bg-white'}`}
+                key={date}
+                type="button"
+              >
                 <b>{date.slice(5)}</b>
                 <p>
+                  {advicesByDate[date] ? '📋' : ''}
                   {log?.mealsActual ? '🍱' : ''}
                   {log?.exerciseActual?.type ? '🏋️' : ''}
                   {log?.weightKg ? '⚖️' : ''}
@@ -80,18 +97,60 @@ export default function HistoryPage() {
           ))}
         </div>
 
-        {selectedLog ? (
-          <div className="mt-6 rounded-2xl bg-[#FCE96A]/50 p-4">
-            <b>{selectedDate} 复盘</b>
-            <p>饮食：{Object.values(selectedLog.mealsActual).filter(Boolean).join(' / ') || '未记录'}</p>
-            <p>
-              运动：{selectedLog.exerciseActual.type || '未记录'} {selectedLog.exerciseActual.minutes || ''} 分钟
-            </p>
-            <p>
-              心情：{selectedLog.mood} / 5 · {selectedLog.moodNote}
-            </p>
+        <div className="mt-6 rounded-2xl bg-[#FCE96A]/50 p-4">
+          <b>{selectedDate} 复盘</b>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl bg-white/70 p-4">
+              <h4 className="font-black">当天建议</h4>
+              {selectedAdvice ? (
+                <>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {selectedAdvice.meals.map((meal) => (
+                      <p key={meal.name}>
+                        <b>{meal.name}：</b>
+                        {meal.items}
+                      </p>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-sm">
+                    <b>运动：</b>
+                    {selectedAdvice.exercise.type} · {selectedAdvice.exercise.minutes} 分钟
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-[#6b665f]">未生成当天建议。</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white/70 p-4">
+              <h4 className="font-black">实际打卡</h4>
+              {selectedLog ? (
+                <>
+                  <p className="mt-2 text-sm">饮食：{Object.values(selectedLog.mealsActual).filter(Boolean).join(' / ') || '未记录'}</p>
+                  <p className="mt-2 text-sm">
+                    运动：{selectedLog.exerciseActual.type || '未记录'} {selectedLog.exerciseActual.minutes || ''} 分钟
+                  </p>
+                  <p className="mt-2 text-sm">体重：{selectedLog.weightKg ? `${selectedLog.weightKg} kg` : '未记录'}</p>
+                  <p className="mt-2 text-sm">
+                    心情：{selectedLog.mood ? `${selectedLog.mood} / 5` : '未记录'}
+                    {selectedLog.moodNote ? ` · ${selectedLog.moodNote}` : ''}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-[#6b665f]">未记录当天打卡。</p>
+              )}
+            </div>
           </div>
-        ) : null}
+
+          <div className="mt-4 rounded-2xl bg-white/80 p-4">
+            <h4 className="font-black">差异摘要</h4>
+            <ul className="mt-2 space-y-1 text-sm">
+              {selectedReview.insights.map((insight) => (
+                <li key={insight}>- {insight}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </section>
     </div>
   );
