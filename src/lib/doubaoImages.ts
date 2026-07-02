@@ -1,6 +1,8 @@
 import { dietNames } from '../domain/advice';
 import type { Advice, Profile } from '../domain/types';
 
+type ImageErrorCode = NonNullable<NonNullable<Advice['images']>['errorCode']>;
+
 type DoubaoImageResponse = {
   data?: Array<{
     url?: string;
@@ -18,6 +20,17 @@ type AdviceImagePrompts = {
 
 const defaultBaseUrl = 'https://ark.cn-beijing.volces.com/api/v3';
 const defaultModel = 'doubao-seedream-5-0-260128';
+const defaultTimeoutMs = 60_000;
+
+class DoubaoImageError extends Error {
+  constructor(
+    public readonly code: ImageErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DoubaoImageError';
+  }
+}
 
 function getApiKey() {
   return process.env.ARK_API_KEY || process.env.DOUBAO_API_KEY || process.env.SEEDREAM_API_KEY;
@@ -65,24 +78,39 @@ export function buildAdviceImagePrompts(advice: Advice, profile: Profile): Advic
 async function generateDoubaoImage(prompt: string) {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error('Missing ARK_API_KEY, DOUBAO_API_KEY, or SEEDREAM_API_KEY.');
+    throw new DoubaoImageError('DOUBAO_API_KEY_MISSING', 'Missing ARK_API_KEY, DOUBAO_API_KEY, or SEEDREAM_API_KEY.');
   }
 
-  const response = await fetch(`${getBaseUrl()}/images/generations`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: getModel(),
-      prompt,
-      size: process.env.DOUBAO_IMAGE_SIZE || '2K',
-      output_format: 'png',
-      response_format: 'url',
-      watermark: false,
-    }),
-  });
+  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.DOUBAO_IMAGE_TIMEOUT_MS) || defaultTimeoutMs);
+
+  try {
+    response = await fetch(`${getBaseUrl()}/images/generations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: getModel(),
+        prompt,
+        size: process.env.DOUBAO_IMAGE_SIZE || '2K',
+        output_format: 'png',
+        response_format: 'url',
+        watermark: false,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const isAbort = error instanceof DOMException && error.name === 'AbortError';
+    throw new DoubaoImageError(
+      isAbort ? 'DOUBAO_TIMEOUT' : 'DOUBAO_REQUEST_FAILED',
+      isAbort ? 'Doubao image generation timed out.' : error instanceof Error ? error.message : 'Doubao image request failed.',
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   let payload: DoubaoImageResponse;
@@ -90,27 +118,29 @@ async function generateDoubaoImage(prompt: string) {
   try {
     payload = JSON.parse(text) as DoubaoImageResponse;
   } catch {
-    throw new Error(`Doubao image API returned non-JSON response: ${response.status}`);
+    throw new DoubaoImageError('DOUBAO_NON_JSON', `Doubao image API returned non-JSON response: ${response.status}`);
   }
 
   if (!response.ok) {
-    throw new Error(payload.error?.message || `Doubao image API failed with ${response.status}.`);
+    throw new DoubaoImageError('DOUBAO_API_FAILED', payload.error?.message || `Doubao image API failed with ${response.status}.`);
   }
 
   const firstImage = payload.data?.[0];
   if (firstImage?.url) return firstImage.url;
   if (firstImage?.b64_json) return `data:image/png;base64,${firstImage.b64_json}`;
 
-  throw new Error('Doubao image API returned no image URL.');
+  throw new DoubaoImageError('DOUBAO_NO_IMAGE_URL', 'Doubao image API returned no image URL.');
 }
 
 export async function attachDoubaoImages(advice: Advice, profile: Profile): Promise<Advice> {
   try {
+    console.info('[advise:image:doubao] generating images');
     const prompts = buildAdviceImagePrompts(advice, profile);
     const [dietUrl, exerciseUrl] = await Promise.all([
       generateDoubaoImage(prompts.diet),
       generateDoubaoImage(prompts.exercise),
     ]);
+    console.info('[advise:image:doubao] generated images');
 
     return {
       ...advice,
@@ -121,12 +151,16 @@ export async function attachDoubaoImages(advice: Advice, profile: Profile): Prom
       },
     };
   } catch (error) {
+    const code = error instanceof DoubaoImageError ? error.code : 'DOUBAO_REQUEST_FAILED';
+    const message = error instanceof Error ? error.message : 'Doubao image generation failed.';
+    console.error('[advise:image:doubao] failed', { code, error: message });
     return {
       ...advice,
       images: {
         ...advice.images,
         source: 'fallback',
-        error: error instanceof Error ? error.message : 'Doubao image generation failed.',
+        errorCode: code,
+        error: message,
       },
     };
   }

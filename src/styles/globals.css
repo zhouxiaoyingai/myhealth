@@ -73,16 +73,24 @@ body {
   z-index: 20;
   display: none;
   border-top: 1px solid #eee4d8;
-  background: white;
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(16px);
 }
 
 @media (width <= 767px) {
   .bottom-nav {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
+    right: 12px;
+    left: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    border: 1px solid #eee4d8;
+    border-radius: 20px;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    box-shadow: 0 18px 40px rgb(40 32 20 / 10%);
   }
 
   main {
-    padding-bottom: 90px;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
   }
 }

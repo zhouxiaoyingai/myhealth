@@ -1,21 +1,50 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Settings } from '@/domain/types';
+import { MigrationModal } from '@/components/MigrationModal';
+import type { Advice, Settings } from '@/domain/types';
+import { today } from '@/lib/date';
 import { useRepository } from '@/lib/repo';
+import { getLocalMigrationSummary } from '@/lib/repo/migrate';
 import { useAuth } from '@/lib/supabase/AuthProvider';
+
+type SyncStatus = {
+  profile: 'synced' | 'missing';
+  advice: 'synced' | 'missing';
+  log: 'synced' | 'missing';
+  aiImages: 'cloud' | 'temporary' | 'missing';
+};
 
 export default function SettingsPage() {
   const repo = useRepository();
   const { status, user, configured } = useAuth();
   const [settings, setSettings] = useState<Settings>({ theme: 'system' });
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    profile: 'missing',
+    advice: 'missing',
+    log: 'missing',
+    aiImages: 'missing',
+  });
   const [busy, setBusy] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     void (async () => {
-      const stored = await repo.getSettings();
+      const date = today();
+      const [stored, profile, advice, log] = await Promise.all([
+        repo.getSettings(),
+        repo.getProfile(),
+        repo.getAdvice(date),
+        repo.getLog(date),
+      ]);
       setSettings(stored);
+      setSyncStatus({
+        profile: profile ? 'synced' : 'missing',
+        advice: advice ? 'synced' : 'missing',
+        log: log ? 'synced' : 'missing',
+        aiImages: resolveAiImageStatus(advice?.images),
+      });
     })();
   }, [repo]);
 
@@ -57,8 +86,10 @@ export default function SettingsPage() {
     }
   }
 
-  const modeLabel = status === 'authenticated' ? '云端（Supabase）' : repo.mode === 'supabase' ? '云端' : '本地';
+  const modeLabel = repo.mode === 'supabase' ? '云端（Supabase）' : '本地';
   const userEmail = user?.email;
+  const localMigrationSummary = getLocalMigrationSummary();
+  const syncMode = repo.mode;
 
   return (
     <section className="card">
@@ -78,7 +109,7 @@ export default function SettingsPage() {
           {configured ? (
             userEmail ? (
               <p className="mt-2 text-sm">
-                已登录：<b>{userEmail}</b>
+                登录账号：<b>{userEmail}</b>
               </p>
             ) : (
               <p className="mt-2 text-sm text-[#6b665f]">未登录（数据存在本地）。前往 <a className="underline" href="/auth">/auth</a> 登录。</p>
@@ -90,7 +121,13 @@ export default function SettingsPage() {
 
         <div className="rounded-3xl bg-[#C5B0F4]/45 p-5 md:col-span-2">
           <h2 className="text-2xl font-black">数据</h2>
-          <p className="mt-2 text-sm text-[#514c45]">当前模式：<b>{modeLabel}</b></p>
+          <p className="mt-2 text-sm text-[#514c45]">当前模式：<b>{modeLabel}</b>。这里显示的是本地或云端保存状态。</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <SyncRow label="档案" value={formatDataStatus(syncMode, syncStatus.profile)} />
+            <SyncRow label="今日建议" value={formatDataStatus(syncMode, syncStatus.advice)} />
+            <SyncRow label="今日打卡" value={formatDataStatus(syncMode, syncStatus.log)} />
+            <SyncRow label="AI 图片" value={formatAiImageStatus(syncMode, syncStatus.aiImages)} />
+          </div>
           <div className="mt-3 flex flex-wrap gap-3">
             <button onClick={() => void exportData()} className="btn bg-white" type="button" disabled={busy}>
               导出 JSON
@@ -98,10 +135,44 @@ export default function SettingsPage() {
             <button onClick={() => void clearData()} className="btn bg-[#FF8A5C] text-white" type="button" disabled={busy}>
               清除我的数据
             </button>
+            {status === 'authenticated' && localMigrationSummary.hasAny ? (
+              <button onClick={() => setMigrationOpen(true)} className="btn bg-white" type="button" disabled={busy}>
+                迁移本地数据
+              </button>
+            ) : null}
           </div>
           {message ? <p className="mt-3 text-sm font-bold text-[#514c45]">{message}</p> : null}
         </div>
       </div>
+      <MigrationModal open={migrationOpen} onClose={() => setMigrationOpen(false)} />
     </section>
   );
+}
+
+function SyncRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/70 p-4">
+      <p className="text-sm text-[#6b665f]">{label}</p>
+      <p className="mt-1 text-lg font-black">{value}</p>
+    </div>
+  );
+}
+
+function resolveAiImageStatus(images: Advice['images']): SyncStatus['aiImages'] {
+  if (!images) return 'missing';
+  if (images.dietKey || images.exerciseKey) return 'cloud';
+  if (images.dietUrl || images.exerciseUrl) return 'temporary';
+  return 'missing';
+}
+
+function formatDataStatus(mode: 'local' | 'supabase', status: 'synced' | 'missing'): string {
+  const scope = mode === 'supabase' ? '云端' : '本地';
+  return status === 'synced' ? `${scope}已保存` : `${scope}缺失`;
+}
+
+function formatAiImageStatus(mode: 'local' | 'supabase', status: SyncStatus['aiImages']): string {
+  const scope = mode === 'supabase' ? '云端' : '本地';
+  if (status === 'cloud') return `${scope}已保存`;
+  if (status === 'temporary') return `${scope}临时图片`;
+  return `${scope}未生成`;
 }

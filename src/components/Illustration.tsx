@@ -1,16 +1,13 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 type IllustrationProps = {
   type: 'food' | 'sport';
   imageUrl?: string;
   alt?: string;
-  // 在 html2canvas 导出场景下，把远程豆包 URL 改写为同源代理，避免 CORS 污染画布。
+  variant?: 'default' | 'compact';
   proxied?: boolean;
-  // 生成状态：用于展示 loading 角标。
   loading?: boolean;
-  // 失败提示文本（豆包不可用 / 加载失败），展示一个降级角标。
   fallbackMessage?: string;
-  // 重试回调。提供时会在失败状态下显示一个「重新生成」按钮。
   onRetry?: () => void;
 };
 
@@ -18,14 +15,33 @@ export function buildProxiedImageUrl(originalUrl: string): string {
   return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
 }
 
-export function Illustration({ type, imageUrl, alt, proxied, loading, fallbackMessage, onRetry }: IllustrationProps) {
+export function Illustration({
+  type,
+  imageUrl,
+  alt,
+  variant = 'default',
+  proxied,
+  loading,
+  fallbackMessage,
+  onRetry,
+}: IllustrationProps) {
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const isFood = type === 'food';
-  const remoteImageClass = isFood
-    ? 'h-44 w-full rounded-[24px] bg-[#fffefa] object-cover'
-    : 'aspect-[16/9] w-full rounded-[24px] bg-[#e8f6ff] object-contain';
+  const remoteImageClass =
+    variant === 'compact'
+      ? isFood
+        ? 'h-32 w-full rounded-[20px] bg-[#fffefa] object-cover'
+        : 'h-32 w-full rounded-[20px] bg-[#e8f6ff] object-contain'
+      : isFood
+        ? 'h-44 w-full rounded-[24px] bg-[#fffefa] object-cover'
+        : 'aspect-[16/9] w-full rounded-[24px] bg-[#e8f6ff] object-contain';
   const altText = alt || (isFood ? '饮食建议配图' : '运动建议配图');
 
-  if (imageUrl) {
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [imageUrl]);
+
+  if (imageUrl && !imageLoadFailed) {
     const src = proxied ? buildProxiedImageUrl(imageUrl) : imageUrl;
     return (
       <div className="relative">
@@ -37,8 +53,9 @@ export function Illustration({ type, imageUrl, alt, proxied, loading, fallbackMe
           alt={altText}
           referrerPolicy="no-referrer"
           crossOrigin="anonymous"
+          onError={() => setImageLoadFailed(true)}
         />
-        {loading ? <Watermark tone="loading">豆包生成中...</Watermark> : <Watermark tone="ai">AI 生成 · 仅作示意</Watermark>}
+        {loading ? <Watermark tone="loading">图片生成中...</Watermark> : <Watermark tone="ai">AI 生成</Watermark>}
         {fallbackMessage ? <FallbackBadge message={fallbackMessage} onRetry={onRetry} /> : null}
       </div>
     );
@@ -48,7 +65,7 @@ export function Illustration({ type, imageUrl, alt, proxied, loading, fallbackMe
     <div className="relative">
       <svg
         viewBox="0 0 320 170"
-        className="h-44 w-full rounded-[24px] bg-[#fffefa]"
+        className={variant === 'compact' ? 'h-32 w-full rounded-[20px] bg-[#fffefa]' : 'h-44 w-full rounded-[24px] bg-[#fffefa]'}
         role="img"
         aria-label={isFood ? '饮食插图' : '运动插图'}
       >
@@ -59,10 +76,11 @@ export function Illustration({ type, imageUrl, alt, proxied, loading, fallbackMe
         <rect x="145" y="76" width="145" height="16" rx="8" fill="#fff" opacity=".9" />
         <rect x="145" y="106" width="96" height="16" rx="8" fill="#fff" opacity=".75" />
         <text x="22" y="148" fontSize="13" fontWeight="700" fill="#514c45">
-          AI 生成 · 仅作示意
+          AI 生成
         </text>
       </svg>
-      {fallbackMessage ? <FallbackBadge message={fallbackMessage} onRetry={onRetry} /> : null}
+      {imageLoadFailed ? <FallbackBadge message="图片加载失败，已显示占位图" onRetry={onRetry} /> : null}
+      {!imageLoadFailed && fallbackMessage ? <FallbackBadge message={fallbackMessage} onRetry={onRetry} /> : null}
     </div>
   );
 }

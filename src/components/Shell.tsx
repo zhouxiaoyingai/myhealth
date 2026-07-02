@@ -45,7 +45,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-5 pb-10">{children}</main>
+      <main className="mx-auto max-w-6xl px-5 pb-8 md:pb-10">{children}</main>
       <nav className="bottom-nav" aria-label="移动端主导航">
         {navigation.map((item) => (
           <Link key={item.href} className="py-3 text-center text-xs font-bold" href={item.href}>

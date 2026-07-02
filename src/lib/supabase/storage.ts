@@ -25,26 +25,53 @@ export async function uploadImageFromUrl(
   if (!supabase) return null;
 
   try {
-    const response = await fetch(sourceUrl);
-    if (!response.ok) return null;
+    const response = await fetchImageWithRetry(sourceUrl);
+    if (!response) return null;
     const contentType = response.headers.get('content-type') || 'image/png';
     const arrayBuffer = await response.arrayBuffer();
     const blob = new Blob([arrayBuffer], { type: contentType });
 
     const path = buildStoragePath(userId, date, slot);
-    const { error } = await supabase.storage.from('advices').upload(path, blob, {
-      contentType,
-      upsert: true,
-    });
-    if (error) {
-      console.error('[storage] upload failed', error);
+    const uploaded = await uploadBlobWithRetry(supabase, path, blob, contentType);
+    if (!uploaded) {
       return null;
     }
     return path;
   } catch (err) {
-    console.error('[storage] upload threw', err);
+    console.error('[advise:image:storage] upload threw', err);
     return null;
   }
+}
+
+async function fetchImageWithRetry(sourceUrl: string): Promise<Response | null> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      console.info('[advise:image:fetch] fetching source image', { attempt });
+      const response = await fetch(sourceUrl);
+      if (response.ok) return response;
+      console.error('[advise:image:fetch] source image fetch failed', { attempt, status: response.status });
+    } catch (err) {
+      console.error('[advise:image:fetch] source image fetch threw', { attempt, err });
+    }
+  }
+  return null;
+}
+
+async function uploadBlobWithRetry(
+  supabase: NonNullable<ReturnType<typeof import('./admin').createAdminSupabase>>,
+  path: string,
+  blob: Blob,
+  contentType: string,
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const { error } = await supabase.storage.from('advices').upload(path, blob, {
+      contentType,
+      upsert: true,
+    });
+    if (!error) return true;
+    console.error('[advise:image:storage] upload failed', { attempt, error });
+  }
+  return false;
 }
 
 /**
@@ -58,7 +85,7 @@ export async function getSignedImageUrl(
   if (!supabase) return null;
   const { data, error } = await supabase.storage.from('advices').createSignedUrl(key, expiresIn);
   if (error) {
-    console.error('[storage] sign failed', error);
+    console.error('[advise:image:signed-url] sign failed', error);
     return null;
   }
   return data.signedUrl;

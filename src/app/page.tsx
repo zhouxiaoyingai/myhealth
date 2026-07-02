@@ -16,14 +16,19 @@ export default function Home() {
   const [advice, setAdvice] = useState<Advice>();
   const [log, setLog] = useState<DailyLog>();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStage, setGenerationStage] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+  const isGeneratingRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const regenerate = useCallback(
     async (activeProfile: Profile) => {
+      if (isGeneratingRef.current) return;
+      isGeneratingRef.current = true;
       setIsGenerating(true);
+      setGenerationStage('正在生成建议');
       setImageError(undefined);
 
       try {
@@ -42,7 +47,7 @@ export default function Home() {
         }
 
         const regeneratedAdvice = (await response.json()) as Advice;
-        if (regeneratedAdvice.images?.source === 'fallback' && regeneratedAdvice.images?.error) {
+        if (regeneratedAdvice.images?.error) {
           setImageError(regeneratedAdvice.images.error);
         }
         await repo.saveAdvice(regeneratedAdvice);
@@ -53,7 +58,9 @@ export default function Home() {
         await repo.saveAdvice(fallbackAdvice);
         setAdvice(fallbackAdvice);
       } finally {
+        isGeneratingRef.current = false;
         setIsGenerating(false);
+        setGenerationStage(undefined);
       }
     },
     [repo],
@@ -72,7 +79,7 @@ export default function Home() {
       setProfile(activeProfile);
       setAdvice(cachedAdvice);
       setLog(storedLog ?? undefined);
-      if (cachedAdvice.images?.source === 'fallback' && cachedAdvice.images?.error) {
+      if (cachedAdvice.images?.error) {
         setImageError(cachedAdvice.images.error);
       }
 
@@ -127,6 +134,7 @@ export default function Home() {
       log={log}
       cardRef={cardRef}
       isGenerating={isGenerating}
+      generationStage={generationStage}
       isExporting={isExporting}
       imageError={imageError}
       exportMessage={exportMessage}
@@ -141,6 +149,7 @@ function HomeBody({
   log,
   cardRef,
   isGenerating,
+  generationStage,
   isExporting,
   imageError,
   exportMessage,
@@ -151,6 +160,7 @@ function HomeBody({
   log?: DailyLog;
   cardRef: RefObject<HTMLDivElement | null>;
   isGenerating: boolean;
+  generationStage?: string;
   isExporting: boolean;
   imageError?: string;
   exportMessage: string;
@@ -160,7 +170,10 @@ function HomeBody({
   const dietSrc = useImageUrl(advice.images?.dietKey ?? advice.images?.dietUrl);
   const exerciseSrc = useImageUrl(advice.images?.exerciseKey ?? advice.images?.exerciseUrl);
   const isDoubaoReady = advice.images?.source === 'doubao';
-  const fallbackMessage = isDoubaoReady ? undefined : '豆包配图暂不可用';
+  const fallbackMessage = isDoubaoReady ? undefined : '图片暂不可用';
+  const imageSourcesLoading = dietSrc.loading || exerciseSrc.loading;
+  const dietFallbackMessage = dietSrc.error ? '图片暂不可用' : fallbackMessage;
+  const exerciseFallbackMessage = exerciseSrc.error ? '图片暂不可用' : fallbackMessage;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]" ref={cardRef}>
@@ -172,10 +185,11 @@ function HomeBody({
           <button onClick={onRegenerate} className="btn btn-primary" type="button" disabled={isGenerating}>
             {isGenerating ? '生成中...' : '重新生成'}
           </button>
-          <button onClick={onSave} className="btn bg-white" type="button" disabled={isExporting}>
-            {isExporting ? '导出中...' : '保存卡片'}
+          <button onClick={onSave} className="btn bg-white" type="button" disabled={isExporting || imageSourcesLoading}>
+            {imageSourcesLoading ? '图片加载中，稍后保存' : isExporting ? '导出中...' : '保存卡片'}
           </button>
         </div>
+        {generationStage ? <p className="mt-3 rounded-2xl bg-white/75 p-3 text-sm font-bold text-[#514c45]">{generationStage}</p> : null}
         {exportMessage ? <p className="mt-3 rounded-2xl bg-white/75 p-3 text-sm font-bold text-[#514c45]">{exportMessage}</p> : null}
         {advice.warning ? <p className="mt-4 rounded-2xl bg-white/75 p-4 font-bold text-[#8a4b00]">⚠️ {advice.warning}</p> : null}
       </section>
@@ -204,12 +218,12 @@ function HomeBody({
           type="food"
           imageUrl={dietSrc.url}
           proxied={isDoubaoReady}
-          loading={(isGenerating || dietSrc.loading) && !isDoubaoReady}
-          fallbackMessage={fallbackMessage}
+          loading={isGenerating || dietSrc.loading}
+          fallbackMessage={dietFallbackMessage}
           onRetry={onRegenerate}
         />
         <h2 className="mt-4 text-2xl font-black">🥗 饮食卡片</h2>
-        {imageError && !isDoubaoReady ? (
+        {imageError ? (
           <p className="mt-3 rounded-2xl bg-[#F7F4ED] p-3 text-sm text-[#6b665f]">原因：{imageError}</p>
         ) : null}
         <div className="mt-3 grid gap-3">
@@ -230,8 +244,8 @@ function HomeBody({
           type="sport"
           imageUrl={exerciseSrc.url}
           proxied={isDoubaoReady}
-          loading={(isGenerating || exerciseSrc.loading) && !isDoubaoReady}
-          fallbackMessage={fallbackMessage}
+          loading={isGenerating || exerciseSrc.loading}
+          fallbackMessage={exerciseFallbackMessage}
           onRetry={onRegenerate}
         />
         <h2 className="mt-4 text-2xl font-black">🏃 运动卡片</h2>

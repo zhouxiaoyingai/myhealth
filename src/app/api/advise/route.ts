@@ -51,6 +51,18 @@ export async function POST(request: Request) {
           };
           return NextResponse.json({ ...withImages, images: mergedImages });
         }
+
+        if (withImages.images?.source === 'doubao') {
+          console.error('[advise:image:storage] all uploads failed; returning temporary Doubao URLs');
+          return NextResponse.json({
+            ...withImages,
+            images: {
+              ...withImages.images,
+              errorCode: 'STORAGE_UPLOAD_FAILED' as const,
+              error: '图片已生成但云端保存失败，已临时展示。',
+            },
+          });
+        }
       }
     }
   }

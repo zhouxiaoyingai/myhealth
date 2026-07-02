@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrateLocalToSupabase, readLocalDb } from '@/lib/repo/migrate';
+import { getLocalMigrationSummary, migrateLocalToSupabase, readLocalDb } from '@/lib/repo/migrate';
 import { sampleProfile } from '@/domain/advice';
 import type { Advice, DailyLog } from '@/domain/types';
 
@@ -133,5 +133,23 @@ describe('migrateLocalToSupabase', () => {
       expect(result.error.kind).toBe('exception');
       expect(String(result.error.message)).toContain('boom');
     }
+  });
+});
+
+describe('getLocalMigrationSummary', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('返回本地可迁移数据数量', () => {
+    seedLocal();
+
+    expect(getLocalMigrationSummary()).toEqual({
+      hasAny: true,
+      hasProfile: true,
+      profileCount: 1,
+      adviceCount: 1,
+      logCount: 1,
+    });
   });
 });

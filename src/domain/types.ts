@@ -64,6 +64,16 @@ export type Advice = {
     dietKey?: string;
     exerciseKey?: string;
     source: 'doubao' | 'fallback';
+    errorCode?:
+      | 'DOUBAO_API_KEY_MISSING'
+      | 'DOUBAO_TIMEOUT'
+      | 'DOUBAO_NON_JSON'
+      | 'DOUBAO_API_FAILED'
+      | 'DOUBAO_NO_IMAGE_URL'
+      | 'DOUBAO_REQUEST_FAILED'
+      | 'IMAGE_FETCH_FAILED'
+      | 'STORAGE_UPLOAD_FAILED'
+      | 'SIGNED_URL_FAILED';
     error?: string;
   };
 };

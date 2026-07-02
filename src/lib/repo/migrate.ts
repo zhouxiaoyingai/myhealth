@@ -30,6 +30,20 @@ export function clearLocalDb(): void {
   window.localStorage.removeItem(LOCAL_KEY);
 }
 
+export function getLocalMigrationSummary(local: LocalDb = readLocalDb()): LocalMigrationSummary {
+  const hasProfile = !!local.profile;
+  const adviceCount = Object.keys(local.advices).length;
+  const logCount = Object.keys(local.logs).length;
+
+  return {
+    hasAny: hasProfile || adviceCount > 0 || logCount > 0,
+    hasProfile,
+    profileCount: hasProfile ? 1 : 0,
+    adviceCount,
+    logCount,
+  };
+}
+
 export type MigrateMode = 'all' | 'profile-only' | 'skip';
 
 export type MigrateSummary = {
@@ -37,6 +51,14 @@ export type MigrateSummary = {
   adviceCount: number;
   logCount: number;
   clearedLocal: boolean;
+};
+
+export type LocalMigrationSummary = {
+  hasAny: boolean;
+  hasProfile: boolean;
+  profileCount: number;
+  adviceCount: number;
+  logCount: number;
 };
 
 export type MigrateError = { kind: 'no-client' | 'no-user' | 'no-data' | 'exception'; message: string };
@@ -67,8 +89,7 @@ export async function migrateLocalToSupabase(
   }
 
   const local = readLocalDb();
-  const hasAny = !!local.profile || Object.keys(local.advices).length > 0 || Object.keys(local.logs).length > 0;
-  if (!hasAny) {
+  if (!getLocalMigrationSummary(local).hasAny) {
     return { ok: false, error: { kind: 'no-data', message: '本地没有数据' } };
   }
 

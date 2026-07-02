@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { createBrowserSupabase } from '@/lib/supabase/client';
-import { readLocalDb, migrateLocalToSupabase } from '@/lib/repo/migrate';
+import { getLocalMigrationSummary, migrateLocalToSupabase, readLocalDb } from '@/lib/repo/migrate';
 
 type Props = {
   open: boolean;
@@ -16,10 +16,7 @@ export function MigrationModal({ open, onClose }: Props) {
   const [message, setMessage] = useState('');
 
   const local = open ? readLocalDb() : null;
-  const hasProfile = !!local?.profile;
-  const adviceCount = Object.keys(local?.advices ?? {}).length;
-  const logCount = Object.keys(local?.logs ?? {}).length;
-  const hasAny = hasProfile || adviceCount > 0 || logCount > 0;
+  const summary = getLocalMigrationSummary(local ?? undefined);
 
   const migrate = useCallback(
     async (mode: 'all' | 'profile-only') => {
@@ -50,7 +47,7 @@ export function MigrationModal({ open, onClose }: Props) {
   );
 
   if (!open) return null;
-  if (!hasAny) {
+  if (!summary.hasAny) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-6">
@@ -68,13 +65,13 @@ export function MigrationModal({ open, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-6">
         <h2 className="text-2xl font-black">要不要把本地数据搬到云端？</h2>
-        <p className="mt-2 text-sm text-[#6b665f]">
-          登录前这台浏览器上还有数据：<b>{hasProfile ? '档案' : ''}</b>
-          {adviceCount > 0 ? <b> · {adviceCount} 条建议</b> : null}
-          {logCount > 0 ? <b> · {logCount} 条打卡</b> : null}
-          。
-        </p>
-        <p className="mt-2 text-xs text-[#6b665f]">「全部」会清空本地；「只档案」保留建议和打卡在本地。</p>
+        <p className="mt-2 text-sm text-[#6b665f]">登录前这台浏览器上还有本地数据，迁移前可以先确认数量。</p>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <MigrationCount label="本地档案" value={`${summary.profileCount} 条`} />
+          <MigrationCount label="建议" value={`${summary.adviceCount} 天`} />
+          <MigrationCount label="打卡" value={`${summary.logCount} 天`} />
+        </div>
+        <p className="mt-2 text-xs text-[#6b665f]">“全部”会清空本地；“只档案”保留建议和打卡在本地。</p>
         <div className="mt-4 grid gap-2">
           <button onClick={() => void migrate('all')} disabled={busy} className="btn btn-primary" type="button">
             {busy ? '处理中...' : '全部搬到云端'}
@@ -88,6 +85,14 @@ export function MigrationModal({ open, onClose }: Props) {
         </div>
         {message ? <p className="mt-3 text-sm font-bold text-[#514c45]">{message}</p> : null}
       </div>
+    </div>
+  );
+}
+
+function MigrationCount({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-[#F7F4ED] p-3">
+      <p className="text-sm font-black">{label} {value}</p>
     </div>
   );
 }
